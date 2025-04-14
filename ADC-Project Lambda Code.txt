@@ -1,0 +1,53 @@
+import json
+import boto3
+import base64
+
+rekognition = boto3.client('rekognition')
+
+def lambda_handler(event, context):
+    try:
+        # Debug: Print full incoming event
+        print("Received event:", json.dumps(event))
+
+        # Parse the body correctly
+        if isinstance(event['body'], dict):
+            body = event['body']
+        else:
+            body = json.loads(event['body'])
+
+        # Extract base64-encoded image data
+        image_data = body.get('image')
+        if not image_data:
+            return response(400, "Missing 'image' in request body")
+
+        # Convert base64 to bytes
+        image_bytes = base64.b64decode(image_data)
+
+        # Call Rekognition to detect labels
+        rekognition_response = rekognition.detect_labels(
+            Image={'Bytes': image_bytes},
+            MaxLabels=10,
+            MinConfidence=70
+        )
+
+        print("Rekognition response:", rekognition_response)
+
+        return response(200, "Success", rekognition_response['Labels'])
+
+    except Exception as e:
+        print("Error:", str(e))
+        return response(500, "Internal Server Error", str(e))
+
+def response(status_code, message, data=None):
+    return {
+        "statusCode": status_code,
+        "headers": {
+            "Access-Control-Allow-Origin": "*",  # CORS fix
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Methods": "OPTIONS,POST"
+        },
+        "body": json.dumps({
+            "message": message,
+            "data": data
+        })
+    }
